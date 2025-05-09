@@ -9,22 +9,35 @@ def init_db():
     conn.database = "prediksi_saham"
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS daftar_saham (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL UNIQUE,
-        name VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )""")
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS riwayat_prediksi (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id VARCHAR(100) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        periods INT NOT NULL,
-        forecast TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )""")
+        CREATE TABLE IF NOT EXISTS daftar_saham (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            symbol VARCHAR(10) NOT NULL UNIQUE,
+            name VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS riwayat_prediksi (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id VARCHAR(100) NOT NULL,
+            symbol VARCHAR(10) NOT NULL,
+            periods INT NOT NULL,
+            forecast TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
 
     conn.commit()
     cursor.close()
