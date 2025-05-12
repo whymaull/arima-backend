@@ -36,3 +36,23 @@ def login():
         }})
     else:
         return jsonify({'message': 'Email atau password salah'}), 401
+
+@auth_bp.route('/profile/<user_id>', methods=['GET'])
+def get_profile(user_id):
+    try:
+        conn = get_connection()
+        conn.database = 'prediksi_saham'
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT id, username, email FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if user:
+            return jsonify(user)
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -72,31 +72,42 @@ def predict():
         
         if data is None:
             return jsonify({
-            "error": "Data historis tidak ditemukan untuk symbol dan tanggal tersebut."
-        }), 400
+                "error": "Data historis tidak ditemukan untuk symbol dan tanggal tersebut."
+            }), 400
 
+        # Jalankan prediksi ARIMA
+        result = predict_arima(
+            data,
+            n_periods=periods,
+            start_date=start_date,
+            period_type=period_type
+        )
 
-        # Prediksi dimulai dari tanggal tersebut
-        result = predict_arima(data, n_periods=periods, start_date=start_date, period_type=period_type)
-
-        # Simpan hanya nilai prediksi
-        forecast_only = [item['value'] for item in result]
-
-        # Simpan ke database
+        # Simpan hasil lengkap (termasuk tanggal dan nilai prediksi)
         conn = get_connection()
         conn.database = "prediksi_saham"
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO riwayat_prediksi (user_id, symbol, periods, forecast) VALUES (%s, %s, %s, %s)",
-            (user_id, symbol, periods, json.dumps(forecast_only))
-        )
+
+        cursor.execute("""
+            INSERT INTO riwayat_prediksi (user_id, symbol, start_date, period_type, periods, forecast)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            user_id,
+            symbol,
+            start_date,
+            period_type,
+            periods,
+            json.dumps(result)
+        ))
+
         conn.commit()
         cursor.close()
         conn.close()
 
         return jsonify({
             "symbol": symbol,
-            "forecast": result  # format: [{"date": "...", "value": ...}]
+            "forecast": result
         })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500

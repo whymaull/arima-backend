@@ -9,14 +9,13 @@ def get_riwayat(user_id):
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT id, symbol, periods, forecast, created_at
+        SELECT id, user_id, symbol, start_date, period_type, periods, forecast, created_at
         FROM riwayat_prediksi
         WHERE user_id = %s
         ORDER BY created_at DESC
     """, (user_id,))
     
     riwayat = cursor.fetchall()
-
     cursor.close()
     conn.close()
     return jsonify(riwayat)
@@ -29,7 +28,6 @@ def delete_riwayat(riwayat_id):
 
     cursor.execute("DELETE FROM riwayat_prediksi WHERE id = %s", (riwayat_id,))
     conn.commit()
-
     cursor.close()
     conn.close()
     return jsonify({"message": "Riwayat berhasil dihapus"})
