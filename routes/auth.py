@@ -41,7 +41,6 @@ def login():
 def get_profile(user_id):
     try:
         conn = get_connection()
-        conn.database = 'prediksi_saham'
         cursor = conn.cursor(dictionary=True)
 
         cursor.execute("SELECT id, username, email FROM users WHERE id = %s", (user_id,))
