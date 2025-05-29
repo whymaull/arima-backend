@@ -5,6 +5,24 @@ riwayat_bp = Blueprint('riwayat', __name__)
 
 @riwayat_bp.route('/riwayat/<user_id>', methods=['GET'])
 def get_riwayat(user_id):
+
+    """
+    Ambil riwayat prediksi berdasarkan user_id
+    ---
+    tags:
+      - Riwayat
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: Riwayat berhasil diambil
+    """
+
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -23,6 +41,24 @@ def get_riwayat(user_id):
 
 @riwayat_bp.route('/riwayat/<int:riwayat_id>', methods=['DELETE'])
 def delete_riwayat(riwayat_id):
+
+    """
+    Hapus riwayat prediksi berdasarkan ID
+    ---
+    tags:
+      - Riwayat
+    parameters:
+      - name: riwayat_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Riwayat berhasil dihapus
+    """
+
+
     conn = get_connection()
     cursor = conn.cursor()
 

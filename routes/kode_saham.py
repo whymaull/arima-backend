@@ -5,6 +5,17 @@ symbol_bp = Blueprint("symbols", __name__)
 
 @symbol_bp.route("/symbols", methods=["GET"])
 def get_symbols():
+
+    """
+    Ambil daftar kode saham dari database
+    ---
+    tags:
+      - Saham
+    responses:
+      200:
+        description: Daftar simbol saham
+    """
+
     conn = get_connection()
     conn.database = "prediksi_saham"
     cursor = conn.cursor(dictionary=True)
@@ -12,5 +23,4 @@ def get_symbols():
     result = cursor.fetchall()
     cursor.close()
     conn.close()
-    print(1)
     return jsonify(result)
