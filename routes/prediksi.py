@@ -78,16 +78,16 @@ def predict():
         interval = interval_map.get(period_type, "1d")
 
         # Ambil data historis saham dengan interval sesuai
-        data = get_stock_data(f"{symbol}.JK", end=start_date, interval=interval)
-
-        if data is None:
+        df = get_stock_data(f"{symbol}.JK", end=start_date, interval=interval)
+        
+        if df is None:
             return jsonify({
                 "error": "Data historis tidak ditemukan untuk symbol dan tanggal tersebut."
             }), 400
 
         # Lakukan prediksi
         result = predict_arima(
-            data,
+            df,
             n_periods=periods,
             start_date=start_date,
             period_type=period_type

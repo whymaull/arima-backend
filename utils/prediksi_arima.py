@@ -1,117 +1,86 @@
 from datetime import datetime, timedelta
 import warnings
-from pmdarima import auto_arima
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import numpy as np
+import pandas as pd
 import yfinance as yf
 
 def get_stock_data(symbol, end, start="2023-01-01", interval="1d"):
-    df = yf.download(symbol, start=start, end=end, interval=interval, progress=False, auto_adjust=False, threads=False, timeout=20)
+    df = yf.download(symbol, start=start, end=end, interval=interval, progress=False, auto_adjust=False)
 
-    if df is None or df.empty:
-        print(f"❌ Data kosong untuk {symbol} dengan interval {interval}")
+    if df.empty:
+        print(f"❌ Data kosong untuk {symbol}")
         return None
 
-    try:
-        close = df["Close"]
-        if close.empty:
-            print("❌ Kolom 'Close' kosong.")
-            return None
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df["Close"][symbol]
+    else:
+        df = df["Close"]
 
-        print(f"\n📊 Data harga penutupan saham '{symbol}' dari {start} sampai {end} (interval: {interval}):\n")
-        print(close.to_string())
+    df = df.dropna()
+    df.index = pd.to_datetime(df.index)
 
-        return close  
-    except Exception as e:
-        print(f"❌ Gagal parsing data: {e}")
-        return None
+    print(f"✅ get_stock_data berhasil")
+    print(f"📅 Range index: {df.index.min()} → {df.index.max()}")
+    print(f"⏱️ Freq hasil infer: {pd.infer_freq(df.index)}")
+    print(f"🔢 Jumlah data: {len(df)}")
+    print(f"📊 Type: {type(df)}, Nulls: {df.isnull().sum()}")
 
-# def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
-    
-#     if period_type == 'weekly':
-#         seasonal = True
-#         m = 52
-#     elif period_type == 'monthly':
-#         seasonal = True
-#         m = 12
-#     else:  
-#         seasonal = False
-#         m = 1
+    print("\n📊 Data yang dikirim ke ARIMA (preview):")
+    print(df.head())
 
-#     model = auto_arima(
-#         data,
-#         seasonal=seasonal,
-#         m=m,
-#         stepwise=True,
-#         max_p=6,
-#         max_q=6,
-#         max_order=5,
-#         suppress_warnings=True,
-#         error_action="ignore"
-#     )
-
-#     # Cetak model dan summary
-#     print(f"\n✅ Best model: {model.order}")
-#     print(model.summary())
-
-#     forecast = model.predict(n_periods=n_periods).tolist()
-
-#     in_sample_pred = model.predict_in_sample()
-#     rmse = np.sqrt(mean_squared_error(data, in_sample_pred))
-#     mae = mean_absolute_error(data, in_sample_pred)
-
-#     print(f"\n📈 Evaluation Metrics:")
-#     print(f"RMSE: {rmse:.2f}")
-#     print(f"MAE : {mae:.2f}\n")
-
-#     base_date = datetime.strptime(start_date, "%Y-%m-%d")
-
-#     step = {
-#         'daily': timedelta(days=1),
-#         'weekly': timedelta(weeks=1),
-#         'monthly': timedelta(days=30),
-#     }.get(period_type, timedelta(days=1))
-
-#     dates = [base_date + i * step for i in range(1, n_periods + 1)]
-#     print("\n📈 Hasil Prediksi:")
-#     for d, v in zip(dates, forecast):
-#         print(f"{d.strftime('%Y-%m-%d')}  →  {round(v, 2)}")
-
-#     return [{"date": d.strftime("%Y-%m-%d"), "value": round(v, 2)} for d, v in zip(dates, forecast)]
-
+    return df 
 
 def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
     warnings.filterwarnings("ignore")
 
+    # Ambil kolom Close jika DataFrame
+    if isinstance(data, pd.DataFrame):
+        if "Close" in data.columns:
+            data = data["Close"]
+        else:
+            raise ValueError("Data tidak mengandung kolom 'Close'")
+
+    data = data.dropna().astype(float)
+
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+
     if data.index.freq is None:
-        data.index.freq = data.index.inferred_freq
+        data.index.freq = pd.infer_freq(data.index)
 
     d = 1
     best_rmse = float("inf")
     best_model = None
     best_order = None
     best_mae = None
+    best_mape = None
 
-    print("🚀 Mulai tuning ARIMA...\n")
+    print("\n🚀 Mulai tuning ARIMA...\n")
 
-    for p in range(0, 6):
-        for q in range(0, 6):
+    for p in range(0, 7):
+        for q in range(0, 7):
             try:
                 model = ARIMA(data, order=(p, d, q))
                 fitted_model = model.fit()
 
                 in_sample_pred = fitted_model.predict(start=0, end=len(data)-1)
-                rmse = np.sqrt(mean_squared_error(data, in_sample_pred))
-                mae = mean_absolute_error(data, in_sample_pred)
+                in_sample_pred.index = data.index
 
-                print(f"🔍 ARIMA({p},{d},{q}) — RMSE: {rmse:.2f} | MAE: {mae:.2f}")
+                rmse = np.sqrt(mean_squared_error(data.values, in_sample_pred.values))
+                mae = mean_absolute_error(data.values, in_sample_pred.values)
+                mask = data.values != 0
+                mape = np.mean(np.abs((data.values[mask] - in_sample_pred.values[mask]) / data.values[mask])) * 100
+
+                print(f"🔍 ARIMA({p},{d},{q}) — RMSE: {rmse:.2f} | MAE: {mae:.2f} | MAPE: {mape:.2f}%")
 
                 if rmse < best_rmse:
                     best_rmse = rmse
                     best_model = fitted_model
                     best_order = (p, d, q)
                     best_mae = mae
+                    best_mape = mape
 
             except Exception as e:
                 print(f"❌ Gagal ARIMA({p},{d},{q}): {e}")
@@ -128,7 +97,8 @@ def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
 
     print(f"\n📈 Evaluation Metrics:")
     print(f"RMSE: {best_rmse:.2f}")
-    print(f"MAE : {best_mae:.2f}\n")
+    print(f"MAE : {best_mae:.2f}")
+    print(f"MAPE: {best_mape:.2f}%\n")
 
     base_date = datetime.strptime(start_date, "%Y-%m-%d")
     step = {
@@ -141,6 +111,95 @@ def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
 
     print("\n📈 Hasil Prediksi:")
     for d, v in zip(dates, forecast):
-        print(f"{d.strftime('%Y-%m-%d')}  →  {round(v, 2)}")
+        print(f"{d.strftime('%Y-%m-%d')} → {round(v, 2)}")
 
     return [{"date": d.strftime("%Y-%m-%d"), "value": round(v, 2)} for d, v in zip(dates, forecast)]
+
+
+# def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
+#     warnings.filterwarnings("ignore")
+
+#     if isinstance(data, pd.DataFrame):
+#         if "Close" in data.columns:
+#             data = data["Close"]
+#         else:
+#             raise ValueError("DataFrame tidak memiliki kolom 'Close'")
+
+#     data = data.dropna()
+
+#     # Pastikan Series valid
+#     data = data.dropna()
+#     if not isinstance(data.index, pd.DatetimeIndex):
+#         data.index = pd.to_datetime(data.index)
+
+#     data = data.astype(float)
+
+#     if data.index.freq is None:
+#         data.index.freq = data.index.inferred_freq
+
+#     d = 1
+#     best_rmse = float("inf")
+#     best_model = None
+#     best_order = None
+#     best_mae = None
+#     best_mape = None
+
+#     print("🚀 Mulai tuning ARIMA...\n")
+
+#     for p in range(0, 6):
+#         for q in range(0, 6):
+#             try:
+#                 model = ARIMA(data, order=(p, d, q))
+#                 fitted_model = model.fit()
+
+#                 in_sample_pred = fitted_model.predict(start=0, end=len(data)-1)
+#                 in_sample_pred = pd.Series(in_sample_pred, index=data.index) 
+
+#                 rmse = np.sqrt(mean_squared_error(data, in_sample_pred))
+#                 mae = mean_absolute_error(data, in_sample_pred)
+#                 mask = data != 0  # hindari pembagi 0
+#                 mape = np.mean(np.abs((data[mask] - in_sample_pred[mask]) / data[mask])) * 100
+
+#                 print(f"🔍 ARIMA({p},{d},{q}) — RMSE: {rmse:.2f} | MAE: {mae:.2f} | MAPE: {mape:.2f}%")
+
+#                 if rmse < best_rmse:
+#                     best_rmse = rmse
+#                     best_model = fitted_model
+#                     best_order = (p, d, q)
+#                     best_mae = mae
+#                     best_mape = mape
+
+#             except Exception as e:
+#                 print(f"❌ Gagal ARIMA({p},{d},{q}): {e}")
+#                 continue
+
+#     if not best_model:
+#         print("⚠️ Tidak ada model yang berhasil dipakai.")
+#         return []
+
+#     print(f"\n✅ Best model: ARIMA{best_order}")
+#     print(best_model.summary())
+
+#     forecast = best_model.forecast(steps=n_periods)
+
+#     print(f"\n📈 Evaluation Metrics:")
+#     print(f"RMSE: {best_rmse:.2f}")
+#     print(f"MAE : {best_mae:.2f}")
+#     print(f"MAPE: {best_mape:.2f}%")
+#     print(f"MAPE: {best_mape:.2f}%\n")
+
+#     base_date = datetime.strptime(start_date, "%Y-%m-%d")
+#     step = {
+#         'daily': timedelta(days=1),
+#         'weekly': timedelta(weeks=1),
+#         'monthly': timedelta(days=30),
+#     }.get(period_type, timedelta(days=1))
+
+#     dates = [base_date + i * step for i in range(1, n_periods + 1)]
+
+#     print("\n📈 Hasil Prediksi:")
+#     for d, v in zip(dates, forecast):
+#         print(f"{d.strftime('%Y-%m-%d')}  →  {round(v, 2)}")
+
+#     return [{"date": d.strftime("%Y-%m-%d"), "value": round(v, 2)} for d, v in zip(dates, forecast)]
+
