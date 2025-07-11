@@ -5,6 +5,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from statsmodels.tsa.stattools import adfuller
+
 
 def get_stock_data(symbol, end, start="2023-01-01", interval="1d"):
     df = yf.download(symbol, start=start, end=end, interval=interval, progress=False, auto_adjust=False)
@@ -32,6 +34,24 @@ def get_stock_data(symbol, end, start="2023-01-01", interval="1d"):
 
     return df 
 
+def make_stationary(data, max_diff=3, alpha=0.05):
+    print("📌 Memulai ADF Test...")
+    
+    d = 0
+    while d <= max_diff:
+        adf_result = adfuller(data)
+        p_value = adf_result[1]
+        print(f"📉 ADF Test (d={d}) — p-value: {p_value:.5f}")
+        if p_value <= alpha:
+            print(f"✅ Data stasioner pada differencing ke-{d}")
+            return data, d
+        data = data.diff().dropna()
+        d += 1
+    print("⚠️ Data tidak stasioner meskipun sudah di-difference hingga batas maksimal.")
+    return data, d
+
+
+
 def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
     warnings.filterwarnings("ignore")
 
@@ -50,7 +70,8 @@ def predict_arima(data, n_periods=7, start_date=None, period_type='daily'):
     if data.index.freq is None:
         data.index.freq = pd.infer_freq(data.index)
 
-    d = 1
+    data_stationary, d = make_stationary(data) 
+
     best_rmse = float("inf")
     best_model = None
     best_order = None
